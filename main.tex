@@ -1,0 +1,413 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\title{Informe Practica 4}
+\author{Samuel Primera C.I: 31.129.684, Samuel Reyna CI: 30.210.759}
+\date{29 de Julio 2025}
+
+\begin{document}
+
+\maketitle
+
+\section{ Explique con un diagrama cómo funciona el ciclo de una interrupción de hardware}
+
+\begin{center}
+\begin{tikzpicture}[node distance=2cm, auto]
+    \tikzstyle{block} = [rectangle, draw, text width=8em, text centered, rounded corners, minimum height=4em]
+    \tikzstyle{line} = [draw, -latex']
+    
+    \node [block] (evento) {Dispositivo hardware genera señal de interrupción};
+    \node [block, below of=evento] (suspender) {CPU suspende ejecución actual y guarda contexto};
+    \node [block, below of=suspender] (isr) {Salta a la Rutina de Servicio de Interrupción (ISR)};
+    \node [block, below of=isr] (procesar) {ISR procesa la solicitud del dispositivo};
+    \node [block, below of=procesar] (retorno) {Restaura contexto y reanuda programa original};
+    
+    \path [line] (evento) -- (suspender);
+    \path [line] (suspender) -- (isr);
+    \path [line] (isr) -- (procesar);
+    \path [line] (procesar) -- (retorno);
+    \path [line] (retorno) -- ++(-3,0) |- (evento);
+\end{tikzpicture}
+\end{center}
+
+El ciclo de una interrupción de hardware sigue estos pasos:
+
+\begin{enumerate}
+    \item Un dispositivo hardware genera una señal de interrupción.
+    \item La CPU suspende la ejecución del programa actual, guarda su estado (contexto), y salta a la rutina de servicio de interrupción (ISR).
+    \item El ISR procesa la solicitud del dispositivo.
+    \item Una vez completado el ISR, la CPU restaura el contexto guardado y reanuda la ejecución del programa original.
+\end{enumerate}
+
+\section{¿Qué diferencias hay entre gestionar E/S con sondeo y hacerlo con interrupciones?}
+
+\begin{table}[h]
+\centering
+\label{tab:comparacion}
+\begin{tabular}{>{\raggedright\arraybackslash}p{4cm}>{\raggedright\arraybackslash}p{5cm}>{\raggedright\arraybackslash}p{5cm}}
+\toprule
+\textbf{Aspecto} & \textbf{Gestión con sondeo (Polling)} & \textbf{Gestión con interrupciones} \\
+\midrule
+\textbf{Mecanismo de operación} & El procesador verifica repetidamente el estado del dispositivo de E/S. & El dispositivo de E/S notifica al sistema operativo cuando termina una operación o hay un error. \\
+\addlinespace
+
+\textbf{Uso del procesador} & Consume ciclos de CPU en espera activa, reduciendo la productividad. & Permite al procesador realizar otras tareas mientras espera, mejorando la eficiencia. \\
+\addlinespace
+
+\textbf{Acceso al dispositivo} & Cada verificación requiere un acceso separado al dispositivo de E/S. & Solo se accede al dispositivo cuando este genera una interrupción. \\
+\addlinespace
+
+\textbf{Latencia y eficiencia} & Ineficiente para operaciones lentas, ya que el procesador queda ocupado verificando. & Más eficiente, especialmente con E/S lentas, ya que evita esperas innecesarias. \\
+\addlinespace
+
+\textbf{Respuesta a eventos} & Depende de la frecuencia de sondeo; puede haber retrasos en detectar cambios. & Respuesta inmediata, ya que el dispositivo avisa activamente. \\
+\addlinespace
+
+\textbf{Complejidad} & Más simple de implementar, pero menos escalable. & Más complejo (manejo de interrupciones), pero más escalable y eficiente. \\
+\addlinespace
+
+\textbf{Escenario típico} & Útil cuando el tiempo de E/S es predecible y corto. & Ideal para dispositivos lentos o sistemas donde la eficiencia del CPU es crítica. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{¿Qué ventajas tiene el uso de interrupciones en términos de uso del procesador?}
+
+El uso de interrupciones ofrece varias ventajas significativas en términos de eficiencia y uso del procesador:
+
+\begin{itemize}[leftmargin=*, noitemsep]
+    \item \textbf{Mayor eficiencia del procesador:} 
+    Las interrupciones permiten al procesador evitar la espera activa (\textit{polling}) por la finalización de operaciones de E/S lentas. En lugar de que el procesador dedique ciclos valiosos a comprobar repetidamente el estado de los dispositivos de E/S, puede ejecutar otras tareas o programas.
+
+    \item \textbf{Multitarea y concurrencia:} 
+    Cuando una operación de E/S solicita datos, el procesador puede cambiar a la ejecución de otra tarea. Una vez que la operación de E/S se completa y genera una interrupción, el procesador es notificado y puede volver a la tarea original o a una tarea relacionada. Esto es crucial para la multitarea y para sistemas donde múltiples programas necesitan compartir recursos.
+
+    \item \textbf{Respuesta a eventos asíncronos:} 
+    Las interrupciones son el mecanismo ideal para que el hardware notifique al procesador sobre eventos asíncronos (eventos que no están directamente ligados a la ejecución de una instrucción específica en el programa en curso), como la finalización de una transferencia de datos o un error de hardware.
+
+    \item \textbf{Mejora del tiempo de respuesta (latencia):} 
+    Aunque no siempre minimizan la latencia para una única operación de E/S (como podría hacerlo un sondeo muy eficiente en un sistema simple), en un entorno con múltiples tareas o dispositivos, las interrupciones permiten al sistema responder de manera más oportuna a diversos eventos, mejorando la percepción general de la interactividad y eficiencia del sistema.
+\end{itemize}
+
+\section{¿Qué registros especiales se utilizan en MIPS32 para gestionar interrupciones?}
+
+En un sistema MIPS32, el coprocesador 0 es el encargado de gestionar las excepciones e interrupciones. Para ello, se utilizan varios registros especiales:
+
+\begin{itemize}[leftmargin=*, noitemsep]
+    \item \textbf{Registro Causa (Cause):} 
+    Este registro proporciona información sobre la causa específica de la excepción o interrupción. Contiene bits que el hardware modifica para señalar el tipo de evento que la ha provocado.
+    
+    \item \textbf{Registro Estado (Status):} 
+    Este registro, junto con el registro Causa, proporciona información sobre el estado del sistema de procesamiento de la interrupción. Contiene bits que controlan el estado de las interrupciones, como la habilitación o deshabilitación de las mismas.
+    
+    \item \textbf{Registro EPC (Exception Program Counter):} 
+    Este registro almacena la dirección de la instrucción que causó la excepción o interrupción. Esto permite que, una vez que la rutina de servicio ha manejado la interrupción, el programa pueda reanudar su ejecución desde el punto correcto.
+    
+    \item \textbf{Registro BadVAddr (Bad Virtual Address):} 
+    Este registro almacena la dirección virtual involucrada en un fallo de acceso a memoria, lo cual es relevante en el manejo de excepciones relacionadas con la memoria, como los fallos de página.
+\end{itemize}
+
+\section{¿Por qué es necesario guardar el contexto al entrar en una rutina de servicio?}
+
+Es necesario guardar el contexto (especialmente los registros del procesador) al entrar en una rutina de servicio por varias razones fundamentales, principalmente para asegurar la correcta reanudación del programa interrumpido y para el funcionamiento adecuado de la rutina de servicio misma:
+
+\begin{itemize}[leftmargin=*, noitemsep, topsep=0pt]
+    \item \textbf{Preservación del estado del programa interrumpido:} 
+    Cuando ocurre una interrupción, el procesador deja de ejecutar el programa actual para atender la rutina de servicio. Si la rutina de servicio utiliza los mismos registros que el programa que fue interrumpido, sus valores se sobrescribirían. Al guardar los valores de los registros del programa original en memoria (generalmente en la pila), se asegura que el estado del programa no se pierda.
+    
+    \item \textbf{Reanudación correcta de la ejecución:} 
+    Una vez que la rutina de servicio completa su tarea, el programa original debe reanudar su ejecución exactamente desde el punto donde fue interrumpido y con su estado intacto. Restaurar los registros previamente guardados desde la memoria permite que el programa continúe como si la interrupción nunca hubiera ocurrido, desde su perspectiva funcional.
+    
+    \item \textbf{Independencia de la rutina de servicio:} 
+    Al guardar el contexto, la rutina de servicio puede utilizar los registros del procesador sin preocuparse por sobrescribir datos importantes del programa que la invocó. Esto facilita la programación de las rutinas de servicio, ya que no necesitan saber qué registros está utilizando el programa principal.
+\end{itemize}
+
+\section{Momentos en que pueden generarse excepciones en un sistema MIPS32}
+
+\begin{enumerate}[label=\alph*)]
+    \item Enumera al menos 4 situaciones en las que se pueda generar una excepción (por ejemplo: desbordamiento aritmético, fallo de dirección, etc.).
+
+    \begin{itemize}
+        \item \textbf{Desbordamiento aritmético (overflow):} Ocurre en operaciones como \texttt{add} cuando el resultado excede el rango de 32 bits.
+        \item \textbf{Fallo de dirección (address error):} Acceso a memoria con dirección no alineada (ej: \texttt{lw} o \texttt{sw} en dirección que no es múltiplo de 4).
+        \item \textbf{Instrucción no implementada:} El hardware no reconoce el opcode de la instrucción.
+        \item \textbf{Interrupción externa:} Señal de un dispositivo de E/S que requiere atención inmediata.
+    \end{itemize}
+
+    \item Explica qué etapas del pipeline pueden provocar una excepción y por qué.
+
+    
+    \begin{itemize}
+        \item \textbf{Etapa IF (Fetch):}
+        \begin{itemize}
+            \item \textbf{Causas:}
+            \begin{itemize}
+                \item Fallo al leer la instrucción (dirección inválida o no alineada).
+                \item Acceso a memoria protegida o no disponible.
+            \end{itemize}
+        \end{itemize}
+
+        \item \textbf{Etapa ID (Decode):}
+        \begin{itemize}
+            \item \textbf{Causas:}
+            \begin{itemize}
+                \item Instrucción con opcode inválido o no soportado.
+                \item Intento de usar un registro no existente (en algunos diseños).
+            \end{itemize}
+        \end{itemize}
+
+        \item \textbf{Etapa EX (Execute):}
+        \begin{itemize}
+            \item \textbf{Causas:}
+            \begin{itemize}
+                \item Desbordamiento en operaciones aritméticas (ej: \texttt{add}, \texttt{sub}).
+                \item División por cero (depende de la implementación).
+            \end{itemize}
+        \end{itemize}
+
+        \item \textbf{Etapa MEM (Memory Access):}
+        \begin{itemize}
+            \item \textbf{Causas:}
+            \begin{itemize}
+                \item Dirección de memoria no alineada en load/store (ej: \texttt{lw} en 0x1001).
+                \item Violación de permisos (ej: escritura en memoria de solo lectura).
+            \end{itemize}
+        \end{itemize}
+
+        \item \textbf{Etapa WB (Writeback):}
+        \begin{itemize}
+            \item Normalmente no genera excepciones, ya que solo escribe resultados en registros.
+        \end{itemize}
+    \end{itemize}
+
+    \textbf{Nota adicional:}
+    \begin{itemize}
+        \item Las excepciones se manejan mediante el \textbf{coprocesador 0 (CP0)} en MIPS32.
+        \item El flujo del pipeline se interrumpe y el PC salta al \textbf{vector de excepciones} (ej: \texttt{0x80000180}).
+    \end{itemize}
+\end{enumerate}
+
+\section{Estrategias de tratamiento de excepciones e interrupciones}
+
+\subsection*{a) Diferencias entre interrupciones y excepciones (¿son síncronas o asíncronas?)}
+
+\begin{itemize}
+    \item \textbf{Excepciones:}
+    \begin{itemize}
+        \item Son eventos \textbf{síncronos}. Esto significa que están directamente relacionadas con la ejecución de una instrucción específica y ocurren de manera predecible en el mismo punto del programa si las condiciones que las causan se repiten.
+        \item Son generadas por el propio procesador al detectar un problema o una condición especial durante la ejecución de una instrucción.
+    \end{itemize}
+    
+    \item \textbf{Interrupciones:}
+    \begin{itemize}
+        \item Son eventos \textbf{asíncronos}. Esto significa que no están directamente relacionadas con una instrucción específica que se está ejecutando en el momento en que ocurren. Pueden ocurrir en cualquier momento.
+        \item Son generadas por eventos externos al procesador, como la finalización de una operación de E/S o un temporizador.
+    \end{itemize}
+\end{itemize}
+
+\subsection*{b) Estrategias para tratar excepciones en un sistema MIPS32}
+
+\subsection*{1. Manejo general de excepciones (no vectorizado)}
+\begin{itemize}
+    \item Para la mayoría de las excepciones, MIPS utiliza un único punto de entrada para el manejador de excepciones. El procesador salta a una dirección predefinida, que es \texttt{0x80000180} (en hexadecimal) en el espacio de direcciones del núcleo.
+    \item Una vez allí, el sistema operativo descodifica el registro \texttt{Cause} para determinar la razón específica de la excepción. Este registro contiene un campo que indica la causa de la excepción.
+\end{itemize}
+
+\subsection*{2. Manejo de fallos de TLB (con punto de entrada especializado)}
+\begin{itemize}
+    \item Aunque no es una interrupción vectorizada completa en el sentido tradicional, MIPS utiliza una dirección específica para los fallos de la TLB (\textit{Translation Lookaside Buffer}) para mejorar el rendimiento.
+    \item Cuando ocurre un fallo de TLB, el control se transfiere a la dirección \texttt{0x80000000} (en hexadecimal). Esto permite un procesamiento más rápido del caso frecuente de fallo de TLB, con una penalización menor para el caso infrecuente de un fallo de página verdadero.
+\end{itemize}
+
+\subsection*{Función del registro EPC (\textit{Exception Program Counter})}
+\begin{itemize}
+    \item El registro EPC (\textit{Exception Program Counter}) es un registro de 32 bits que almacena la dirección de la instrucción que causó la excepción.
+    \item Su función principal es permitir que el programa continúe su ejecución después de que el manejador de excepciones haya realizado las acciones necesarias.
+    \item Normalmente, se guarda la dirección de la instrucción + 4, por lo que la rutina de gestión de la excepción debe restar 4 para obtener la dirección correcta de la instrucción infractora.
+    \item El manejador de excepciones utiliza la instrucción \texttt{eret} para retornar el flujo de control del programa a la dirección apuntada por el registro EPC, reanudando así la ejecución.
+    \item En el caso de interrupciones externas, la instrucción no habrá comenzado su ejecución cuando se guarda su dirección en el EPC.
+\end{itemize}
+
+\section{Habilitación de interrupciones en dispositivos y procesador}
+
+\subsection*{a) Cómo se habilitan las interrupciones}
+
+\subsection*{En el teclado:}
+\begin{itemize}
+    \item El teclado (un dispositivo receptor) tiene un \textbf{Registro de Control del Receptor} en la dirección \texttt{ffff0000\textsubscript{hex}}.
+    \item Para habilitar interrupciones del teclado, el \textbf{bit 1} de este registro (conocido como \textit{``permitir interrupción''} o \textit{``interrupt enable''}) debe ser activado a \texttt{1} por un programa.
+    \item Cuando se escribe un carácter en el teclado y este bit está activado, el terminal solicita una interrupción de hardware de \textbf{nivel 1}.
+\end{itemize}
+
+\subsection*{En la pantalla:}
+\begin{itemize}
+    \item La pantalla, como dispositivo de salida, se controla a través de un \textbf{Registro de Control del Transmisor} en la dirección \texttt{ffff0008\textsubscript{hex}}.
+    \item Similar al teclado, el \textbf{bit 1} de este registro (\textit{``permitir interrupción''}) debe ser activado a \texttt{1} por un programa.
+    \item Cuando el transmisor está listo para aceptar un nuevo carácter de salida (es decir, su bit \textit{``preparado''} se pone a \texttt{1}), el terminal solicitará una interrupción de hardware de \textbf{nivel 0}.
+\end{itemize}
+
+\subsection*{En el procesador:}
+\begin{itemize}
+    \item El procesador MIPS utiliza el registro \textbf{Status} para controlar la habilitación de interrupciones. Este registro contiene varios campos clave:
+    \begin{itemize}
+        \item \textbf{Bit IE} (\textit{Interrupt Enable - Habilitación de Interrupción}): Este es un bit global. Si está en \texttt{0}, ninguna interrupción puede afectar al procesador. Para permitir interrupciones, debe estar en \texttt{1}.
+        \item \textbf{Campo ``Máscara de interrupción''} (\textit{Interrupt Mask}): Este campo contiene bits individuales (uno para cada nivel de interrupción de hardware y software). Para que una interrupción específica sea atendida, el bit correspondiente en la máscara debe estar en \texttt{1}. Esto permite un control más refinado sobre qué interrupciones se procesan.
+        \item \textbf{Bit EL} (\textit{Exception Level - Nivel de Excepción}): Normalmente está en \texttt{0}. Cuando ocurre una excepción, se activa a \texttt{1}. Si está en \texttt{1}, deshabilita nuevas interrupciones y evita que el registro \texttt{EPC} se actualice, protegiendo el manejador de excepciones de ser perturbado. Debe ser restablecido por el manejador.
+    \end{itemize}
+\end{itemize}
+
+\subsection*{b) ¿Qué pasaría si habilitamos interrupciones en los dispositivos, pero no en el procesador?}
+\begin{itemize}
+    \item Si las interrupciones están habilitadas en los dispositivos (es decir, el dispositivo está configurado para generar una señal de interrupción), pero no en el procesador, el procesador \textbf{no responderá} a esas interrupciones.
+    \item El dispositivo podría activar su bit de interrupción pendiente en el registro \texttt{Cause} del coprocesador 0 del MIPS.
+    \item Sin embargo, si el bit de \textit{``permiso de interrupción''} en el registro \texttt{Status} del procesador está en \texttt{0}, o si el bit correspondiente en la máscara de interrupción para ese nivel de prioridad está en \texttt{0}, el procesador simplemente \textbf{ignorará} la señal de interrupción y continuará su ejecución normal.
+    \item El procesador solo se interrumpirá si, posteriormente, el bit de máscara o el bit de habilitación global de interrupciones se activan.
+\end{itemize}
+
+\section{Procesamiento de interrupciones}
+
+\subsection*{a) Paso a paso cuando se produce una interrupción de reloj}
+
+\subsection*{1. Ocurrencia de la Interrupción}
+\begin{itemize}
+    \item El timer del sistema genera una señal de interrupción al alcanzar un valor predefinido (por ejemplo, cuando el contador llega a cero).
+\end{itemize}
+
+\subsection*{2. Acciones Inmediatas del Hardware}
+\begin{itemize}
+    \item \textbf{Verificación de interrupciones:}
+    \begin{itemize}
+        \item El CPU comprueba si las interrupciones están habilitadas (bit IE en el registro \texttt{Status}).
+        \item Si IE = 1 y no hay otra excepción en curso (EXL = 0), el hardware procede.
+    \end{itemize}
+    
+    \item \textbf{Procesamiento inicial:}
+    \begin{itemize}
+        \item Guarda el registro \texttt{EPC} (\textit{Exception Program Counter}): Almacena la dirección de la siguiente instrucción a ejecutar.
+        \item Actualiza el registro \texttt{Status}:
+        \begin{itemize}
+            \item Establece EXL = 1 (modo kernel, bloqueando nuevas excepciones).
+            \item Desactiva interrupciones (IE = 0).
+        \end{itemize}
+        \item Configura el registro \texttt{Cause}:
+        \begin{itemize}
+            \item Asigna el código de excepción (6 para interrupción de reloj).
+        \end{itemize}
+        \item Salto al manejador de interrupciones:
+        \begin{itemize}
+            \item Carga la dirección del vector de excepciones (\texttt{0x80000180} en MIPS32) en el \texttt{PC}.
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
+\subsection*{3. Ejecución de la Rutina de Servicio (Software)}
+El sistema operativo o manejador de interrupciones realiza las siguientes acciones:
+
+\subsubsection*{a) Almacenamiento del Contexto}
+\begin{itemize}
+    \item Guarda los registros en la pila del kernel (el hardware solo guarda \texttt{EPC} y modifica \texttt{Status/Cause}):
+    \begin{itemize}
+        \item Registros de propósito general (\texttt{\$at, \$v0, \$a0, \$t0, ..., \$ra}, etc.).
+        \item Registros \texttt{Status} y \texttt{Cause} (para su posterior restauración).
+        \item Cualquier otro registro susceptible de modificación.
+    \end{itemize}
+\end{itemize}
+
+\subsubsection*{b) Procesamiento de la Interrupción}
+\begin{itemize}
+    \item \textbf{Reinicio del timer:}
+    \begin{itemize}
+        \item Establece un nuevo valor en el registro del timer para el siguiente ciclo.
+    \end{itemize}
+    \item \textbf{Gestión del planificador} (en sistemas multitarea):
+    \begin{itemize}
+        \item Reduce el quantum del proceso actual.
+        \item Decide si es necesario un cambio de contexto (si el quantum se ha agotado).
+        \begin{itemize}
+            \item En caso afirmativo, guarda el estado del proceso actual (en su PCB) y carga el siguiente.
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
+\subsubsection*{c) Restauración del Contexto}
+\begin{itemize}
+    \item Recupera los registros guardados desde la pila del kernel.
+    \item \textbf{Preparación para el retorno:}
+    \begin{itemize}
+        \item Asegura que el registro \texttt{Status} tenga los valores correctos (EXL = 0, IE restaurado).
+    \end{itemize}
+\end{itemize}
+
+\subsection*{4. Retorno de la Interrupción (Instrucción ERET)}
+\begin{itemize}
+    \item El software ejecuta \texttt{ERET} (\textit{Exception Return}):
+    \begin{itemize}
+        \item Restaura el \texttt{PC} desde \texttt{EPC}: Reanuda la ejecución del programa interrumpido.
+        \item Retorno al modo usuario: Establece EXL = 0.
+        \item Reactivación de interrupciones: Si estaban habilitadas previamente (IE = 1).
+    \end{itemize}
+\end{itemize}
+
+\subsection*{b) ¿Por qué es importante guardar el contexto (registros generales, EPC, Status) al entrar en la rutina?}
+Es crítico guardar el contexto (registros generales, \texttt{EPC}, \texttt{Status}) al entrar en la rutina de manejo de interrupciones por varias razones fundamentales:
+
+\begin{itemize}
+    \item \textbf{Reanudación Correcta del Programa Interrumpido:} La interrupción es un evento inesperado. Para que el programa interrumpido pueda reanudarse de manera transparente y correcta desde el punto donde fue interrumpido, necesita que su estado original (valores de todos los registros) sea restaurado con exactitud. El \texttt{EPC} es fundamental para saber la dirección de la instrucción a retomar, y los registros de propósito general contienen los datos y direcciones con los que el programa estaba operando.
+    
+    \item \textbf{Aislamiento y Protección de Procesos:} En un sistema con múltiples procesos, la interrupción de reloj es comúnmente utilizada para la gestión de tiempo compartido y la planificación de procesos. Guardar el contexto asegura que el sistema operativo puede pausar un programa de usuario, ejecutar su propia lógica (del sistema operativo), y luego cambiar a otro programa o volver al mismo, sin que los programas interfieran entre sí ni que la información del proceso interrumpido se corrompa.
+    
+    \item \textbf{Manejo Robusto de Interrupciones:} Algunas interrupciones pueden ocurrir mientras el sistema operativo ya está manejando otra interrupción (anidamiento de interrupciones). Si el contexto no se guarda, una segunda interrupción podría sobrescribir el \texttt{EPC} o el registro de causa de la primera, haciendo imposible retornar a la instrucción original y resultando en la pérdida de información de estado crítico. Guardar el contexto y controlar la habilitación/deshabilitación de interrupciones previene estos desastres.
+    
+    \item \textbf{Diagnóstico de la Interrupción:} El registro \texttt{Cause} es esencial para que el software del sistema operativo pueda determinar la razón de la interrupción. El registro \texttt{Status} es clave para gestionar la prioridad y el enmascaramiento de las interrupciones.
+    
+    \item En resumen, guardar el contexto permite que el sistema operativo gestione las interrupciones de forma segura y eficiente, garantizando la integridad de los programas y la estabilidad general del sistema.
+\end{itemize}
+
+\section{Interrupciones de reloj y control de ejecución}
+
+\subsection*{a) Uso de una interrupción de reloj para controlar la ejecución de programas}
+
+\begin{itemize}
+    \item Para evitar que un programa quede en un bucle infinito y finalizar programas que superan un tiempo máximo de ejecución, se puede utilizar una interrupción de reloj.
+    
+    \item Un registro de contador (\texttt{Count}) en el procesador (como el del coprocesador 0 en MIPS) se incrementa a una frecuencia fija.
+    
+    \item Cuando el valor de este contador iguala un valor predefinido en un registro de comparación (\texttt{Compare}), se produce una interrupción de hardware.
+    
+    \item Esta interrupción es una excepción, un evento no previsto que interrumpe la ejecución normal del programa y transfiere el control al sistema operativo (SO) en una dirección predefinida (por ejemplo, \texttt{0x80000180\textsubscript{hex}} en MIPS para el manejador de excepciones).
+    
+    \item El SO utiliza el registro de \texttt{Causa} para determinar el motivo de la excepción. Si la causa es una interrupción de temporizador, el SO puede entonces tomar la acción apropiada, que incluye detener la ejecución del programa que ha excedido su tiempo asignado. Esto asegura que un programa no se ejecute indefinidamente ni monopolice el procesador.
+\end{itemize}
+
+\subsection*{b) ¿Qué debe hacer el software si el programa finaliza antes de que ocurra la interrupción de reloj?}
+
+Si un programa finaliza su ejecución de forma voluntaria (por ejemplo, mediante una llamada al sistema como \texttt{exit} o alcanzando su fin) antes de que se produzca la interrupción de reloj programada para su "rodaja de tiempo", el software (sistema operativo) debe:
+
+\begin{itemize}
+    \item \textbf{Tomar el control inmediatamente:} Una llamada al sistema (\texttt{syscall}) para terminar el programa transferirá el control al sistema operativo.
+    
+    \item \textbf{Liberar recursos y limpiar el proceso:} El sistema operativo procederá a limpiar todos los recursos asignados a ese programa (memoria, archivos abiertos, etc.).
+    
+    \item \textbf{Ignorar o reconfigurar la interrupción pendiente:} La interrupción de reloj ya programada para ese "slice" de tiempo se vuelve irrelevante para ese proceso. El sistema operativo, al haber tomado el control, no permitirá que el temporizador (\texttt{Count/Compare}) desencadene incorrectamente un cambio de contexto a un proceso ya terminado. Al terminar el proceso y programar el siguiente, el sistema operativo gestiona el temporizador para el nuevo contexto. Los manejadores de interrupción están diseñados para verificar el contexto actual y la causa de la interrupción antes de tomar acciones, de modo que una interrupción de reloj para un proceso ya finalizado sería manejada sin intentar reanudar un programa que no existe.
+\end{itemize}
+
+\section{Análisis y Discusión de los Resultados}
+
+Esta práctica se caracterizó por el uso de interrupciones por hardware para la gestión de entradas/salidas y la implementación de rutinas de servicio. El desarrollo incluyó dos algoritmos principales con enfoques distintos pero complementarios.
+
+En el primer algoritmo, se comenzó con la declaración de variables, incluyendo un intervalo temporal de 20 segundos y la dirección de memoria asignada al teclado. En la función principal se inicializaron los registros necesarios. Luego, en el bucle principal se implementa una espera activa de \texttt{50\,ms} para optimizar el uso de la CPU. Este bucle verifica las entradas por teclado mediante la lectura del bit de \textit{ready} en el registro de control. Cuando se detectaba una entrada válida, el sistema procede a leer y almacenar el carácter en un \textit{buffer} circular, actualizando adecuadamente los punteros \texttt{head} y \texttt{tail} con su correspondiente manejo de \textit{wrap-around} para garantizar el funcionamiento correcto del \textit{buffer}.
+
+La gestión del tiempo se realiza mediante la rutina \texttt{check\_time}, que acumula los intervalos de \texttt{50\,ms}. Cada 20 segundos, el sistema muestra el contenido completo del \textit{buffer} a través de la función \texttt{print\_buffer}. Esta última función se encarga de imprimir un encabezado y luego recorre el \textit{buffer} carácter por carácter, actualizando adecuadamente el puntero \texttt{tail} y manejando los casos especiales de \textit{buffer} vacío o lleno. Todo este proceso demuestra la importancia de las interrupciones de teclado para el correcto funcionamiento del sistema de almacenamiento y visualización de caracteres.
+
+El segundo algoritmo se centra en la visualización gráfica mediante un \textit{Bitmap Display}. La inicialización del sistema incluye la configuración de los registros necesarios y la preparación de los valores de color en formato hexadecimal. El ejercicio consiste en ciclos de visualización controlados por un interruptor simulado mediante teclado. Cada ciclo lee el color de los píxeles, verifica el estado de completado, y gestiona tiempos de espera específicos para cada transición de color. El sistema mantiene un bucle principal que garantiza la secuencia correcta de colores y tiempos, volviendo al estado inicial al completar el ciclo completo.
+
+La implementación de estos algoritmos permitió observar en la práctica varios conceptos fundamentales. En el primer caso, se evidenció la importancia de las interrupciones de hardware para la gestión eficiente de dispositivos de entrada como el teclado. El segundo ejercicio demostró el uso de visualización gráfica y temporizaciones precisas, mostrando cómo interactúan diferentes componentes del sistema. Ambos ejemplos sirvieron para comprender mejor el manejo de \textit{buffers}, la gestión de tiempos y la importancia de las rutinas de servicio de interrupciones.
+
+\end{document}
